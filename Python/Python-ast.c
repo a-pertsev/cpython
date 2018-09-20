@@ -185,6 +185,7 @@ static char *Expr_fields[]={
 static PyTypeObject *Pass_type;
 static PyTypeObject *Break_type;
 static PyTypeObject *Continue_type;
+static PyTypeObject *BokshEnd_type;
 static PyTypeObject *expr_type;
 static char *expr_attributes[] = {
     "lineno",
@@ -907,6 +908,8 @@ static int init_types(void)
     if (!Break_type) return 0;
     Continue_type = make_type("Continue", stmt_type, NULL, 0);
     if (!Continue_type) return 0;
+    BokshEnd_type = make_type("BokshEnd", stmt_type, NULL, 0);
+    if (!BokshEnd_type) return 0;
     expr_type = make_type("expr", &AST_type, NULL, 0);
     if (!expr_type) return 0;
     if (!add_attributes(expr_type, expr_attributes, 2)) return 0;
@@ -1731,6 +1734,19 @@ Continue(int lineno, int col_offset, PyArena *arena)
     if (!p)
         return NULL;
     p->kind = Continue_kind;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    return p;
+}
+
+stmt_ty
+BokshEnd(int lineno, int col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    p = (stmt_ty)PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = BokshEnd_kind;
     p->lineno = lineno;
     p->col_offset = col_offset;
     return p;
@@ -3023,6 +3039,10 @@ ast2obj_stmt(void* _o)
         break;
     case Continue_kind:
         result = PyType_GenericNew(Continue_type, NULL, NULL);
+        if (!result) goto failed;
+        break;
+    case BokshEnd_kind:
+        result = PyType_GenericNew(BokshEnd_type, NULL, NULL);
         if (!result) goto failed;
         break;
     }
@@ -5734,6 +5754,16 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
         if (*out == NULL) goto failed;
         return 0;
     }
+    isinstance = PyObject_IsInstance(obj, (PyObject*)BokshEnd_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+
+        *out = BokshEnd(lineno, col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
 
     PyErr_Format(PyExc_TypeError, "expected some sort of stmt, but got %R", obj);
     failed:
@@ -8213,6 +8243,8 @@ PyInit__ast(void)
     if (PyDict_SetItemString(d, "Break", (PyObject*)Break_type) < 0) return
         NULL;
     if (PyDict_SetItemString(d, "Continue", (PyObject*)Continue_type) < 0)
+        return NULL;
+    if (PyDict_SetItemString(d, "BokshEnd", (PyObject*)BokshEnd_type) < 0)
         return NULL;
     if (PyDict_SetItemString(d, "expr", (PyObject*)expr_type) < 0) return NULL;
     if (PyDict_SetItemString(d, "BoolOp", (PyObject*)BoolOp_type) < 0) return

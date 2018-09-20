@@ -506,6 +506,7 @@ validate_stmt(stmt_ty stmt)
              validate_expr(stmt->v.AsyncFunctionDef.returns, Load));
     case Pass_kind:
     case Break_kind:
+    case BokshEnd_kind:
     case Continue_kind:
         return 1;
     default:
@@ -3121,9 +3122,10 @@ ast_for_flow_stmt(struct compiling *c, const node *n)
 {
     /*
       flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt
-                 | yield_stmt
+                 | yield_stmt | boksh_end_stmt
       break_stmt: 'break'
       continue_stmt: 'continue'
+      boksh_end_stmt: 'bokshend'
       return_stmt: 'return' [testlist]
       yield_stmt: yield_expr
       yield_expr: 'yield' testlist | 'yield' 'from' test
@@ -3134,6 +3136,8 @@ ast_for_flow_stmt(struct compiling *c, const node *n)
     REQ(n, flow_stmt);
     ch = CHILD(n, 0);
     switch (TYPE(ch)) {
+        case boksh_end_stmt:
+            return BokshEnd(LINENO(n), n->n_col_offset, c->c_arena);
         case break_stmt:
             return Break(LINENO(n), n->n_col_offset, c->c_arena);
         case continue_stmt:

@@ -47,9 +47,10 @@ augassign: ('+=' | '-=' | '*=' | '@=' | '/=' | '%=' | '&=' | '|=' | '^=' |
 # For normal and annotated assignments, additional restrictions enforced by the interpreter
 del_stmt: 'del' exprlist
 pass_stmt: 'pass'
-flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt | yield_stmt
+flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt | yield_stmt | boksh_end_stmt
 break_stmt: 'break'
 continue_stmt: 'continue'
+boksh_end_stmt: 'bokshend'
 return_stmt: 'return' [testlist]
 yield_stmt: yield_expr
 raise_stmt: 'raise' [test ['from' test]]

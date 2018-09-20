@@ -82,7 +82,7 @@ compiler IR.
 */
 
 enum fblocktype { WHILE_LOOP, FOR_LOOP, EXCEPT, FINALLY_TRY, FINALLY_END,
-                  WITH, ASYNC_WITH, HANDLER_CLEANUP };
+                  WITH, IF_BLOCK, ASYNC_WITH, HANDLER_CLEANUP };
 
 struct fblockinfo {
     enum fblocktype fb_type;
@@ -1531,6 +1531,7 @@ compiler_unwind_fblock(struct compiler *c, struct fblockinfo *info,
                        int preserve_tos)
 {
     switch (info->fb_type) {
+        case IF_BLOCK:
         case WHILE_LOOP:
             return 1;
 
@@ -2395,11 +2396,18 @@ compiler_lambda(struct compiler *c, expr_ty e)
 static int
 compiler_if(struct compiler *c, stmt_ty s)
 {
-    basicblock *end, *next;
+    basicblock *start, *end, *next;
+
     int constant;
     assert(s->kind == If_kind);
+
+    start = compiler_new_block(c);
     end = compiler_new_block(c);
-    if (end == NULL)
+
+    if (start == NULL || end == NULL)
+        return 0;
+
+    if (!compiler_push_fblock(c, IF_BLOCK, start, end))
         return 0;
 
     constant = expr_constant(s->v.If.test);
@@ -2428,6 +2436,8 @@ compiler_if(struct compiler *c, stmt_ty s)
             VISIT_SEQ(c, stmt, s->v.If.orelse);
         }
     }
+    compiler_use_next_block(c, start);
+    compiler_pop_fblock(c, IF_BLOCK, start);
     compiler_use_next_block(c, end);
     return 1;
 }
@@ -2595,6 +2605,20 @@ compiler_return(struct compiler *c, stmt_ty s)
     ADDOP(c, RETURN_VALUE);
 
     return 1;
+}
+
+static int
+compiler_bokshend(struct compiler *c)
+{
+    for (int depth = c->u->u_nfblocks; depth--;) {
+        struct fblockinfo *info = &c->u->u_fblock[depth];
+
+        if (info->fb_type == IF_BLOCK) {
+            ADDOP_JABS(c, JUMP_ABSOLUTE, info->fb_exit);
+            return 1;
+        }
+    }
+    return compiler_error(c, "'bokshend' outside if");
 }
 
 static int
@@ -3131,6 +3155,8 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         return compiler_visit_stmt_expr(c, s->v.Expr.value);
     case Pass_kind:
         break;
+    case BokshEnd_kind:
+        return compiler_bokshend(c);
     case Break_kind:
         return compiler_break(c);
     case Continue_kind:
